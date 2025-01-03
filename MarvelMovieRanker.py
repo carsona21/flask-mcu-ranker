@@ -47,25 +47,33 @@ def next_pair():
     if len(session['pairs']) == 0:
         return jsonify({'redirect': url_for('results')})
 
-    chosen = request.json['choice']
-    movie1, movie2 = session['current_pair']
+    # Check if request.json exists and contains 'choice'
+    chosen = request.json.get('choice')
+    if not chosen:
+        return jsonify({'error': 'Invalid request'}), 400
+    
+    movie1, movie2 = session.get('current_pair', (None, None))
+    if not movie1 or not movie2:
+        return jsonify({'redirect': url_for('results')})
 
-    # Remove the loser from the rankings list
     if chosen == 'movie1':
         session['rankings'].remove(movie2)
     elif chosen == 'movie2':
         session['rankings'].remove(movie1)
-
+    
+    # Update pairs
     session['pairs'] = [pair for pair in session['pairs'] if movie1 in pair or movie2 in pair]
-
+    
+    # Check if pairs still exist
     if len(session['pairs']) > 0:
         session['current_pair'] = random.choice(session['pairs'])
         movie1, movie2 = session['current_pair']
     else:
         return jsonify({'redirect': url_for('results')})
-
+    
     progress = int(((len(mcu) - len(session['rankings'])) / len(mcu)) * 100)
     return jsonify({'movie1': movie1, 'movie2': movie2, 'progress': progress})
+
 
 @app.route('/results')
 def results():
