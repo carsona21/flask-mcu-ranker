@@ -160,7 +160,12 @@
     const progressText = document.getElementById("progress-text");
     const totalComparisons = movies.length - 1;
     let completedComparisons = 0;
-
+    let movieScores = {};  // Track wins for each movie
+    let seenMovies = new Set();  // Track which movies have been shown
+    movies.forEach(movie => {
+    movieScores[movie] = 0;
+    });
+    
     // DOM elements
     const leftMovieEl = document.getElementById("leftMovie");
     const rightMovieEl = document.getElementById("rightMovie");
@@ -170,57 +175,57 @@
     const finalRankingDiv = document.getElementById("final-ranking");
     const rankingListEl = document.getElementById("rankingList");
 
+
     /************************************************
      * 3) Show the next comparison pair
      ************************************************/
     function showNextComparison() {
-      // If there's nothing left to rank AND we aren't placing a currentMovie
       if (toRank.length === 0 && currentMovie === null) {
         finishRanking();
         return;
       }
 
-      // If no currentMovie, pick the next from toRank
       if (currentMovie === null) {
         currentMovie = toRank.shift();
         compareIndex = 0;
       }
 
-      // If ranked is empty, just place the movie automatically
       if (ranked.length === 0) {
         ranked.push(currentMovie);
+        seenMovies.add(currentMovie);
         currentMovie = null;
         showNextComparison();
         return;
       }
 
-      // If we've compared with all ranked items and still haven't placed
       if (compareIndex >= ranked.length) {
         ranked.push(currentMovie);
+        seenMovies.add(currentMovie);
         currentMovie = null;
         showNextComparison();
         return;
       }
 
-      // Now show comparison: currentMovie vs ranked[compareIndex]
+      // Show comparison and track seen movies
       leftMovieEl.textContent = currentMovie;
       rightMovieEl.textContent = ranked[compareIndex];
+      seenMovies.add(currentMovie);
+      seenMovies.add(ranked[compareIndex]);
     }
-
     /************************************************
      * 4) Handle user picks
      ************************************************/
     pickLeftBtn.addEventListener("click", () => {
+      movieScores[currentMovie]++;
       ranked.splice(compareIndex, 0, currentMovie);
       currentMovie = null;
-      completedComparisons++;
       updateProgress();
       showNextComparison();
     });
 
     pickRightBtn.addEventListener("click", () => {
+      movieScores[ranked[compareIndex]]++;
       compareIndex++;
-      completedComparisons++;
       updateProgress();
       showNextComparison();
     });
@@ -233,11 +238,13 @@
       comparisonDiv.style.display = "none";
       finalRankingDiv.style.display = "block";
 
-      // Render the final ranking
+      // Sort by scores before displaying
+      ranked.sort((a, b) => movieScores[b] - movieScores[a]);
+
       rankingListEl.innerHTML = "";
       ranked.forEach((movie, idx) => {
         const li = document.createElement("li");
-        li.textContent = movie;
+        li.textContent = `${movie} (Wins: ${movieScores[movie]})`;
         rankingListEl.appendChild(li);
       });
     }
@@ -280,6 +287,26 @@
 
     shuffle(toRank);
     showNextComparison();
+
+    function restartGame() {
+      ranked = [];
+      toRank = [...movies];
+      currentMovie = null;
+      compareIndex = 0;
+      movieScores = {};
+      movies.forEach(movie => {
+        movieScores[movie] = 0;
+      });
+
+      comparisonDiv.style.display = "block";
+      finalRankingDiv.style.display = "none";
+      progressFill.style.width = "0%";
+      progressText.textContent = "Progress: 0%";
+
+      shuffle(toRank);
+      showNextComparison();
+    }
+
   </script>
 </body>
 
