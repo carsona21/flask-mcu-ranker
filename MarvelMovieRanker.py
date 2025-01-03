@@ -33,9 +33,8 @@ def shuffle_movies():
 @app.route('/')
 def index():
     session['movies'] = shuffle_movies()
-    session['rankings'] = []
-    session['pairs'] = random.sample(list(combinations(session['movies'], 2)), min(50, len(session['movies']) * 2))  # Limit to 50 pairs max
-    session['total_pairs'] = len(session['pairs'])
+    session['rankings'] = mcu[:]  # Start with all movies in the ranking
+    session['pairs'] = list(combinations(session['movies'], 2))  # Generate all possible pairs
     session['completed_pairs'] = 0
 
     if session['pairs']:
@@ -45,21 +44,19 @@ def index():
 
 @app.route('/next_pair', methods=['POST'])
 def next_pair():
-    if session['completed_pairs'] >= session['total_pairs'] or len(session['pairs']) == 0:
+    if len(session['pairs']) == 0:
         return jsonify({'redirect': url_for('results')})
 
     chosen = request.json['choice']
     movie1, movie2 = session['current_pair']
 
+    # Remove the loser from the rankings list
     if chosen == 'movie1':
-        session['rankings'].insert(0, movie1)
+        session['rankings'].remove(movie2)
     elif chosen == 'movie2':
-        session['rankings'].insert(0, movie2)
-    else:  # 'undecided'
-        session['pairs'].append((movie1, movie2))  # Reinsert for later comparison
+        session['rankings'].remove(movie1)
 
-    session['pairs'].remove((movie1, movie2))
-    session['completed_pairs'] += 1
+    session['pairs'] = [pair for pair in session['pairs'] if movie1 in pair or movie2 in pair]
 
     if len(session['pairs']) > 0:
         session['current_pair'] = random.choice(session['pairs'])
@@ -67,18 +64,12 @@ def next_pair():
     else:
         return jsonify({'redirect': url_for('results')})
 
-    progress = int((session['completed_pairs'] / session['total_pairs']) * 100)
+    progress = int(((len(mcu) - len(session['rankings'])) / len(mcu)) * 100)
     return jsonify({'movie1': movie1, 'movie2': movie2, 'progress': progress})
 
 @app.route('/results')
 def results():
-    unique_rankings = []
-    [unique_rankings.append(movie) for movie in session['rankings'] if movie not in unique_rankings]
-
-    missing_movies = [movie for movie in mcu if movie not in unique_rankings]
-    unique_rankings.extend(missing_movies)
-
-    return render_template('results.html', rankings=unique_rankings)
+    return render_template('results.html', rankings=session['rankings'])
 
 # Create basic HTML templates
 template_folder = 'templates'
@@ -90,26 +81,6 @@ rank_html = """
 <head>
     <title>CarsonsMCU Ranker</title>
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            fetch('/next_pair', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ choice: 'none' })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.redirect) {
-                    window.location.href = data.redirect;
-                } else {
-                    document.getElementById('movie1').innerText = data.movie1;
-                    document.getElementById('movie2').innerText = data.movie2;
-                    document.getElementById('progress').innerText = 'Progress: ' + data.progress + '%';
-                }
-            });
-        });
-
         function sendChoice(choice) {
             fetch('/next_pair', {
                 method: 'POST',
@@ -130,42 +101,14 @@ rank_html = """
             });
         }
     </script>
-    <style>
-        .container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            flex-direction: column;
-        }
-        .button-container {
-            display: flex;
-            gap: 20px;
-        }
-        button {
-            font-size: 1.5em;
-            padding: 20px;
-            cursor: pointer;
-            min-width: 300px;
-            height: 100px;
-            text-align: center;
-            white-space: normal;
-        }
-        .progress {
-            margin-top: 20px;
-        }
-    </style>
 </head>
 <body>
-    <div class="container">
+    <div>
         <h1>Which do you prefer?</h1>
-        <div class="button-container">
-            <button id="movie1" onclick="sendChoice('movie1')">{{ movie1 }}</button>
-            <button id="movie2" onclick="sendChoice('movie2')">{{ movie2 }}</button>
-            <button onclick="sendChoice('undecided')">I can't decide</button>
-        </div>
-        <div class="progress" id="progress">Progress: 0%</div>
+        <button id="movie1" onclick="sendChoice('movie1')">{{ movie1 }}</button>
+        <button id="movie2" onclick="sendChoice('movie2')">{{ movie2 }}</button>
     </div>
+    <div id="progress">Progress: 0%</div>
 </body>
 </html>
 """
