@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <title>MCU Movie Ranker</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 2rem;
+      background: #f5f5f5;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-bottom: 1rem;
+    }
+
+    #comparison,
+    #final-ranking {
+      background: #fff;
+      padding: 1rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      margin-bottom: 2rem;
+    }
+
+    button {
+      margin: 0 1rem 1rem 0;
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+
+    #final-ranking ul {
+      list-style-type: decimal;
+      margin: 0;
+      padding: 0 1rem;
+    }
+
+    #progress-bar {
+      width: 100%;
+      height: 20px;
+      background-color: #f0f0f0;
+      border-radius: 10px;
+      margin-bottom: 1rem;
+    }
+
+    #progress-fill {
+      height: 100%;
+      background-color: #4CAF50;
+      border-radius: 10px;
+      transition: width 0.3s ease;
+    }
+
+    #progress-text {
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+
+    .restart-button {
+      background-color: #4CAF50;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-top: 20px;
+    }
+
+    .restart-button:hover {
+      background-color: #45a049;
+    }
+
+    .results-container {
+      text-align: center;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>MCU Movie Ranker</h1>
+  <div id="progress-bar">
+    <div id="progress-fill" style="width: 0%"></div>
+  </div>
+  <div id="progress-text">Progress: 0%</div>
+
+  <!-- Comparison UI -->
+  <div id="comparison">
+    <h2>Which do you prefer?</h2>
+    <div style="margin-bottom:1rem;">
+      <strong id="leftMovie"></strong>
+      <span style="margin: 0 1.5rem;">VS</span>
+      <strong id="rightMovie"></strong>
+    </div>
+    <button id="pickLeft">Pick Left</button>
+    <button id="pickRight">Pick Right</button>
+  </div>
+
+  <!-- Final Ranking Display (initially hidden) -->
+  <div id="final-ranking" style="display: none;" class="results-container">
+    <h2>Your MCU Ranking Complete! 🎉</h2>
+    <ul id="rankingList"></ul>
+    <button class="restart-button" onclick="restartGame()">Rank Again!</button>
+  </div>
+
+
+  <script>
+    /************************************************
+     * 1) Define the MCU Movies in JS
+     ************************************************/
+    const movies = [
+      "Iron Man (2008)",
+      "The Incredible Hulk (2008)",
+      "Iron Man 2 (2010)",
+      "Thor (2011)",
+      "Captain America: The First Avenger (2011)",
+      "The Avengers (2012)",
+      "Iron Man 3 (2013)",
+      "Thor: The Dark World (2013)",
+      "Captain America: The Winter Soldier (2014)",
+      "Guardians of the Galaxy (2014)",
+      "Avengers: Age of Ultron (2015)",
+      "Ant-Man (2015)",
+      "Captain America: Civil War (2016)",
+      "Doctor Strange (2016)",
+      "Guardians of the Galaxy Vol. 2 (2017)",
+      "Spider-Man: Homecoming (2017)",
+      "Thor: Ragnarok (2017)",
+      "Black Panther (2018)",
+      "Avengers: Infinity War (2018)",
+      "Ant-Man and the Wasp (2018)",
+      "Captain Marvel (2019)",
+      "Avengers: Endgame (2019)",
+      "Spider-Man: Far From Home (2019)",
+      "Black Widow (2021)",
+      "Shang-Chi and the Legend of the Ten Rings (2021)",
+      "Eternals (2021)",
+      "Spider-Man: No Way Home (2021)",
+      "Doctor Strange in the Multiverse of Madness (2022)",
+      "Thor: Love and Thunder (2022)",
+      "Black Panther: Wakanda Forever (2022)",
+      "Ant-Man and the Wasp: Quantumania (2023)",
+      "Guardians of the Galaxy Vol. 3 (2023)",
+      "The Marvels (2023)",
+    ];
+
+    /************************************************
+     * 2) State for an insertion-based approach
+     ************************************************/
+    let ranked = [];          // The final sorted array as we build it
+    let toRank = [...movies]; // Movies left to be placed into the ranking
+    let currentMovie = null;  // The movie we’re trying to insert
+    let compareIndex = 0;     // Index in 'ranked' to compare with
+    const progressFill = document.getElementById("progress-fill");
+    const progressText = document.getElementById("progress-text");
+    const totalComparisons = movies.length - 1;
+    let completedComparisons = 0;
+
+    // DOM elements
+    const leftMovieEl = document.getElementById("leftMovie");
+    const rightMovieEl = document.getElementById("rightMovie");
+    const pickLeftBtn = document.getElementById("pickLeft");
+    const pickRightBtn = document.getElementById("pickRight");
+    const comparisonDiv = document.getElementById("comparison");
+    const finalRankingDiv = document.getElementById("final-ranking");
+    const rankingListEl = document.getElementById("rankingList");
+
+    /************************************************
+     * 3) Show the next comparison pair
+     ************************************************/
+    function showNextComparison() {
+      // If there's nothing left to rank AND we aren't placing a currentMovie
+      if (toRank.length === 0 && currentMovie === null) {
+        finishRanking();
+        return;
+      }
+
+      // If no currentMovie, pick the next from toRank
+      if (currentMovie === null) {
+        currentMovie = toRank.shift();
+        compareIndex = 0;
+      }
+
+      // If ranked is empty, just place the movie automatically
+      if (ranked.length === 0) {
+        ranked.push(currentMovie);
+        currentMovie = null;
+        showNextComparison();
+        return;
+      }
+
+      // If we've compared with all ranked items and still haven't placed
+      if (compareIndex >= ranked.length) {
+        ranked.push(currentMovie);
+        currentMovie = null;
+        showNextComparison();
+        return;
+      }
+
+      // Now show comparison: currentMovie vs ranked[compareIndex]
+      leftMovieEl.textContent = currentMovie;
+      rightMovieEl.textContent = ranked[compareIndex];
+    }
+
+    /************************************************
+     * 4) Handle user picks
+     ************************************************/
+    pickLeftBtn.addEventListener("click", () => {
+      ranked.splice(compareIndex, 0, currentMovie);
+      currentMovie = null;
+      completedComparisons++;
+      updateProgress();
+      showNextComparison();
+    });
+
+    pickRightBtn.addEventListener("click", () => {
+      compareIndex++;
+      completedComparisons++;
+      updateProgress();
+      showNextComparison();
+    });
+
+
+    /************************************************
+     * 5) Finish the Ranking
+     ************************************************/
+    function finishRanking() {
+      comparisonDiv.style.display = "none";
+      finalRankingDiv.style.display = "block";
+
+      // Render the final ranking
+      rankingListEl.innerHTML = "";
+      ranked.forEach((movie, idx) => {
+        const li = document.createElement("li");
+        li.textContent = movie;
+        rankingListEl.appendChild(li);
+      });
+    }
+
+    // Update the progress calculation
+    const totalMovies = movies.length;
+    let completedMovies = 0;
+
+    function updateProgress() {
+      // Calculate based on movies placed in ranked array
+      const progress = (ranked.length / totalMovies) * 100;
+      progressFill.style.width = `${progress}%`;
+      progressText.textContent = `Progress: ${Math.round(progress)}%`;
+    }
+
+    // Update the pickLeft handler
+    pickLeftBtn.addEventListener("click", () => {
+      ranked.splice(compareIndex, 0, currentMovie);
+      currentMovie = null;
+      updateProgress();
+      showNextComparison();
+    });
+
+    // Update the pickRight handler
+    pickRightBtn.addEventListener("click", () => {
+      compareIndex++;
+      showNextComparison();
+    });
+
+    /************************************************
+     * 6) Shuffle and start
+     ************************************************/
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
+    shuffle(toRank);
+    showNextComparison();
+  </script>
+</body>
+
+</html>
